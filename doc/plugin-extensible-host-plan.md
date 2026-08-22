@@ -215,7 +215,7 @@
 - [ ] `app/formmain_loadsave.inc` — 保存短路钩子
 - [ ] `app/formmain_find.inc` / `form_find.pas` / `form_frame.pas` — 查找提供者
 - [x] `app/formmain_py_api.inc` / `proc_py_const.pas` — `PROC_CAPABILITY_*`
-- [ ] `app/proc_customdialog*.pas` — 拖放 API（可从旧工作区移植）
+- [x] `app/proc_customdialog*.pas` + `proc_windows_dragfiles.pas` — 拖放 API（已移植）
 
 ### Python / 插件
 

@@ -70,6 +70,11 @@ var
 
 implementation
 
+{$ifdef windows}
+uses
+  proc_drag_debug;
+{$endif}
+
 var
   FDialogShown: boolean = false;
 
@@ -706,6 +711,10 @@ begin
 
   Ed.DoubleBuffered:= UiOps.DoubleBuffered;
   Ed.OnChange:= @AForm.DoOnEditorChange;
+  // TATEdit/TATComboEdit must expose committed UTF-8/IME text through the
+  // same callback as the native edit controls. Without this, API-created
+  // single-line editors cannot reliably receive CJK composition commits.
+  Ed.OnUTF8KeyPress:= @AForm.DoOnMemoUTF8KeyPress;
   Ed.OnChangeCaretPos:= @AForm.DoOnEditorChangeCaretPos;
   Ed.OnKeyDown:= @AForm.DoOnEditorKeyDown;
   Ed.OnKeyUp:= @AForm.DoOnEditorKeyUp;
@@ -1827,6 +1836,17 @@ begin
     exit;
   end;
 
+  if AName='drag_files' then
+  begin
+    Props.FDragFiles:= AValue;
+    {$ifdef windows}
+    AppDragDebugLog('dlg_prop_set drag_files='+
+      StringReplace(AValue, #1, '|', [rfReplaceAll])+
+      ' ctl='+Props.FName);
+    {$endif}
+    exit;
+  end;
+
   if AName='border' then
   begin
     DoControl_SetBorder(C, AppStrToBool(AValue));
@@ -2432,6 +2452,20 @@ begin
       F.FEventOnHide:= AValue;
     'on_form_state':
       F.FEventOnFormState:= AValue;
+    'on_drop_files':
+      begin
+        F.FEventOnDropFiles:= AValue;
+        if AValue<>'' then
+        begin
+          F.AllowDropFiles:= true;
+          F.OnDropFiles:= @F.DoOnDropFiles;
+        end
+        else
+        begin
+          F.AllowDropFiles:= false;
+          F.OnDropFiles:= nil;
+        end;
+      end;
     'vis':
       F.Visible:= AppStrToBool(AValue);
     'keypreview':
@@ -2491,6 +2525,7 @@ begin
   SetDictKey_NotEmpty(Result, 'on_show', F.FEventOnShow);
   SetDictKey_NotEmpty(Result, 'on_hide', F.FEventOnHide);
   SetDictKey_NotEmpty(Result, 'on_form_state', F.FEventOnFormState);
+  SetDictKey_NotEmpty(Result, 'on_drop_files', F.FEventOnDropFiles);
 end;
 
 
@@ -2613,6 +2648,7 @@ begin
     SetDictKey_NotEmpty(Result, 'on_editor_click_gap', Props.FEventOnEditorClickGap);
     SetDictKey_NotEmpty(Result, 'on_editor_click_link', Props.FEventOnEditorClickLink);
     SetDictKey_NotEmpty(Result, 'on_editor_paste', Props.FEventOnEditorPaste);
+    SetDictKey_NotEmpty(Result, 'drag_files', Props.FDragFiles);
   end;
 end;
 

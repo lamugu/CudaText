@@ -60,6 +60,7 @@ type
     FTypeString: string;
     FActive: boolean;
     FTagString: string;
+    FDragFiles: string;
     FEventOnChange: string;
     FEventOnClick: string;
     FEventOnClickX: string;
@@ -131,6 +132,7 @@ type
     FEventOnShow: string;
     FEventOnHide: string;
     FEventOnFormState: string;
+    FEventOnDropFiles: string;
     TagString: string;
     PrevForms: TFPList;
     PrevActiveForm: TForm;
@@ -182,6 +184,7 @@ type
     procedure DoOnEditorClickGap(Sender: TObject; AGapItem: TATGapItem; APos: TPoint);
     procedure DoOnEditorClickLink(Sender: TObject; const ALink: string);
     procedure DoOnEditorPaste(Sender: TObject; var AHandled: boolean; AKeepCaret, ASelectThen: boolean);
+    procedure DoOnDropFiles(Sender: TObject; const FileNames: array of string);
     function DoEvent(AIdControl: integer; const ACallback: string; const AData: TAppVariant): boolean;
     procedure DoEmulatedModalShow;
     procedure DoEmulatedModalClose;
@@ -199,6 +202,145 @@ const
   cAppFormStateStr: array[TWindowState] of string = ('norm', 'min', 'max', 'fullscr');
 
 implementation
+
+{$ifdef windows}
+uses
+  Windows, proc_windows_dragfiles, proc_drag_debug;
+
+type
+  // QueueAsyncCall requires a method (of object), not a free procedure.
+  TAppFileDragSched = class
+    procedure Execute(Data: PtrInt);
+  end;
+
+var
+  // DoDragDrop must not run inside OnMouseMove: ReleaseCapture fires
+  // CaptureChanged while LCL is still dispatching the mouse message,
+  // which deadlocks / freezes the whole app. Defer via QueueAsyncCall.
+  AppPendingDragFiles: string = '';
+  AppFileDragInProgress: boolean = false;
+  AppFileDragSched: TAppFileDragSched = nil;
+
+procedure DeliverFileDragToInternalTarget(const AFileNames: string);
+var
+  C: TControl;
+  Form: TFormDummy;
+  List: TStringList;
+  Files: array of string;
+  i: integer;
+begin
+  AppDragDebugLog('DeliverFileDragToInternalTarget enter');
+  C:= FindLCLControl(Mouse.CursorPos);
+  while Assigned(C) and not (C is TFormDummy) do
+    C:= C.Parent;
+  if not (C is TFormDummy) then
+  begin
+    AppDragDebugLog('DeliverFileDrag: no TFormDummy under cursor');
+    exit;
+  end;
+
+  Form:= TFormDummy(C);
+  if Form.FEventOnDropFiles='' then
+  begin
+    AppDragDebugLog('DeliverFileDrag: form has no on_drop_files');
+    exit;
+  end;
+  if AppCustomDialogs.IndexOf(Form)<0 then
+  begin
+    AppDragDebugLog('DeliverFileDrag: form not in AppCustomDialogs');
+    exit;
+  end;
+
+  List:= TStringList.Create;
+  try
+    List.StrictDelimiter:= true;
+    List.Delimiter:= #1;
+    List.DelimitedText:= AFileNames;
+    SetLength(Files, List.Count);
+    for i:= 0 to List.Count-1 do
+      Files[i]:= List[i];
+  finally
+    List.Free;
+  end;
+  AppDragDebugLog(Format('DeliverFileDrag: calling DoOnDropFiles count=%d', [Length(Files)]));
+  Form.DoOnDropFiles(Form, Files);
+  AppDragDebugLog('DeliverFileDrag: done');
+end;
+
+procedure ExecuteAppFileDrag(const AFileNames: string);
+var
+  CanceledByEscape: boolean;
+  Accepted: boolean;
+begin
+  AppDragDebugLog('ExecuteAppFileDrag enter');
+  if AFileNames='' then
+  begin
+    AppDragDebugLog('ExecuteAppFileDrag skip: empty');
+    exit;
+  end;
+  if AppFileDragInProgress then
+  begin
+    AppDragDebugLog('ExecuteAppFileDrag skip: already in progress');
+    exit;
+  end;
+  // User may have released the button before the deferred call runs.
+  if (GetAsyncKeyState(VK_LBUTTON) and $8000)=0 then
+  begin
+    AppDragDebugLog('ExecuteAppFileDrag skip: LBUTTON up');
+    exit;
+  end;
+
+  AppFileDragInProgress:= true;
+  try
+    Accepted:= AppDragFiles(AFileNames, CanceledByEscape);
+    AppDragDebugLog(Format('ExecuteAppFileDrag after AppDragFiles accepted=%d esc=%d',
+      [Ord(Accepted), Ord(CanceledByEscape)]));
+    if not Accepted and not CanceledByEscape then
+      DeliverFileDragToInternalTarget(AFileNames);
+  except
+    on E: Exception do
+      AppDragDebugLog('ExecuteAppFileDrag EXCEPTION: '+E.ClassName+': '+E.Message);
+  end;
+  AppFileDragInProgress:= false;
+  AppDragDebugLog('ExecuteAppFileDrag leave');
+end;
+
+procedure TAppFileDragSched.Execute(Data: PtrInt);
+var
+  FileNames: string;
+begin
+  AppDragDebugLog('QueueAsyncCall Execute fired');
+  FileNames:= AppPendingDragFiles;
+  AppPendingDragFiles:= '';
+  if FileNames<>'' then
+    ExecuteAppFileDrag(FileNames)
+  else
+    AppDragDebugLog('QueueAsyncCall Execute: pending empty');
+end;
+
+procedure QueueAppFileDrag(const AFileNames: string);
+begin
+  if AFileNames='' then exit;
+  if AppFileDragInProgress then
+  begin
+    AppDragDebugLog('QueueAppFileDrag skip: in progress');
+    exit;
+  end;
+  if AppFileDragSched=nil then
+    AppFileDragSched:= TAppFileDragSched.Create;
+  // Coalesce: keep the latest pending paths, schedule at most one async call.
+  if AppPendingDragFiles='' then
+  begin
+    AppDragDebugReset('new_drag_queue');
+    AppDragDebugLog('QueueAppFileDrag schedule async files='+
+      StringReplace(AFileNames, #1, '|', [rfReplaceAll]));
+    Application.QueueAsyncCall(@AppFileDragSched.Execute, 0);
+  end
+  else
+    AppDragDebugLog('QueueAppFileDrag coalesce update');
+  AppPendingDragFiles:= AFileNames;
+end;
+{$endif}
 
 function DoControl_Target(C: TControl): TControl;
 begin
@@ -304,6 +446,7 @@ begin
   FActive:= false;
   FTypeString:= ATypeString;
   FTagString:= '';
+  FDragFiles:= '';
   FEventOnChange:= '';
 end;
 
@@ -478,10 +621,25 @@ end;
 
 procedure TFormDummy.DoOnControlMouseMove(Sender: TObject;
   Shift: TShiftState; X, Y: Integer);
+var
+  Props: TAppControlProps;
+  FileNames: string;
 begin
   _HandleMouseEvent(Sender, TAppCtlMouseEvent.Move,
     AppVariant_MouseData(mbLeft, Shift, X, Y)
     );
+
+  {$ifdef windows}
+  Props:= TAppControlProps((Sender as TControl).Tag);
+  if Props.FDragFiles<>'' then
+  begin
+    FileNames:= Props.FDragFiles;
+    Props.FDragFiles:= '';
+    AppDragDebugLog('DoOnControlMouseMove saw drag_files, queueing');
+    // Must leave OnMouseMove before DoDragDrop/ReleaseCapture.
+    QueueAppFileDrag(FileNames);
+  end;
+  {$endif}
 end;
 
 procedure TFormDummy.DoOnImagePaintBackground(ASender: TObject;
@@ -1391,10 +1549,41 @@ begin
 end;
 
 
+procedure TFormDummy.DoOnDropFiles(Sender: TObject; const FileNames: array of string);
+var
+  Data: TAppVariant;
+  i: integer;
+begin
+  if FEventOnDropFiles='' then exit;
+
+  // Windows file names cannot contain control characters, so #1 is an
+  // unambiguous separator for the Python callback payload.
+  Data:= Default(TAppVariant);
+  Data.Typ:= TAppVariantTypeId.Str;
+  Data.Str:= '';
+  for i:= 0 to Length(FileNames)-1 do
+  begin
+    if i>0 then
+      Data.Str+= #1;
+    Data.Str+= FileNames[i];
+  end;
+
+  DoEvent(-1, FEventOnDropFiles, Data);
+end;
+
+
 initialization
   AppCustomDialogs:= TFPList.Create;
 
 finalization
+  {$ifdef windows}
+  if AppFileDragSched<>nil then
+  begin
+    if Application<>nil then
+      Application.RemoveAsyncCalls(AppFileDragSched);
+    FreeAndNil(AppFileDragSched);
+  end;
+  {$endif}
   AppCustomDialogs.Free;
 
 end.

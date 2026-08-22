@@ -20,6 +20,32 @@ AUTO_SCROLL_CALLBACK = "module=cuda_tabs_list;cmd=auto_scroll_callback;" # strin
 
 THEME = app_proc(PROC_THEME_UI_DICT_GET, '')
 
+def editor_filename(edit):
+    """Filename for editor OR large-file/binary viewer tabs.
+
+    Plain get_filename() returns '?' for BinaryViewer/ImageViewer frames
+    (large files use that engine). Pass '*' to force the real path.
+    """
+    if not edit:
+        return ''
+    try:
+        fn = edit.get_filename('*') or ''
+    except Exception:
+        fn = ''
+    if fn in ('', '?'):
+        try:
+            fn = edit.get_filename() or ''
+        except Exception:
+            fn = ''
+    if fn in ('', '?'):
+        try:
+            fn = edit.get_prop(PROP_FN, '') or ''
+        except Exception:
+            fn = ''
+    if fn in ('', '?'):
+        return ''
+    return fn
+
 class Command:
     title = 'Tabs'    # No _(), the translation is offered in "translation template.ini".
     h_dlg = None
@@ -43,7 +69,8 @@ class Command:
 
     # Index of the listbox item where dragging started
     drag_start_index = -1
-    # Starting Y-coordinate of the mouse
+    # Starting coordinates of the mouse
+    drag_start_x = 0
     drag_start_y = 0
     # Handle to the editor being dragged. We store the handle
     # (a unique ID) because the Editor() object itself might change.
@@ -278,7 +305,7 @@ class Command:
 
                 name = prefix + title.lstrip('*').replace('|', '/') # ' | ' happens in file pair
                 if self.show_column_folder:
-                    name += '|' + os.path.dirname(edit.get_prop(PROP_FN, ''))
+                    name += '|' + os.path.dirname(editor_filename(edit))
                 if self.show_column_lexer:
                     name += '|' + edit.get_prop(PROP_LEXER_FILE)
 
@@ -405,6 +432,7 @@ class Command:
 
         # Store drag state
         self.drag_start_index = item_index
+        self.drag_start_x = data.get('x', 0)
         self.drag_start_y = y
         self.last_mouse_y = y
         # Store the unique handle (memory address) that won't change
@@ -432,7 +460,30 @@ class Command:
         if self.drag_start_index < 0:
             return
 
+        x = data.get('x', -1)
         y = data.get('y', -1)
+
+        props = dlg_proc(self.h_dlg, DLG_CTL_PROP_GET, index=self.n_list) or {}
+        width = int(props.get('w', 0))
+        height = int(props.get('h', 0))
+        outside = (x < 0 or y < 0 or
+                   (width > 0 and x >= width) or
+                   (height > 0 and y >= height))
+        dx = x - self.drag_start_x
+        dy = y - self.drag_start_y
+        if outside or (abs(dx) > self.drag_threshold and abs(dx) >= abs(dy)):
+            source = Editor(self.drag_source_handle_self)
+            filename = editor_filename(source)
+            if filename and os.path.exists(filename):
+                self._stop_auto_scroll_timer()
+                self._reset_drag_state()
+                dlg_proc(self.h_dlg, DLG_CTL_PROP_SET, index=self.n_list, prop={
+                    'on_mouse_move': '',
+                    'cursor': CURSOR_DEFAULT,
+                    'drag_files': filename,
+                })
+                return
+
         if y < 0:
             return
 
@@ -557,6 +608,7 @@ class Command:
         self.drag_start_index = -1
         self.drag_source_handle_self = None
         self.is_dragging = False
+        self.drag_start_x = 0
         self.drag_start_y = 0
         self.last_mouse_y = -1
 

@@ -1545,6 +1545,14 @@
         <IsPartOfProject Value="True"/>
       </Unit>
       <Unit>
+        <Filename Value="proc_windows_dragfiles.pas"/>
+        <IsPartOfProject Value="True"/>
+      </Unit>
+      <Unit>
+        <Filename Value="proc_drag_debug.pas"/>
+        <IsPartOfProject Value="True"/>
+      </Unit>
+      <Unit>
         <Filename Value="proc_miscutils.pas"/>
         <IsPartOfProject Value="True"/>
       </Unit>
