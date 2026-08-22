@@ -5596,6 +5596,22 @@ begin
             Result:= PyHelper_GetEvents(Str);
           end;
 
+        APP_PROC_CAPABILITY_REGISTER:
+          begin
+            TPluginHelper.CapabilityRegisterFromApi(Str);
+            Result:= ReturnNone;
+          end;
+
+        APP_PROC_CAPABILITY_GET:
+          begin
+            Result:= PyUnicodeFromString(TPluginHelper.CapabilityGet(Str));
+          end;
+
+        APP_PROC_CAPABILITY_ENUM:
+          begin
+            Result:= PyUnicodeFromString(TPluginHelper.CapabilityEnum);
+          end;
+
         APP_PROC_GET_FINDER_PROP:
           begin
             Result:= fmMain.FindDialog_GetOptionsPyDict;

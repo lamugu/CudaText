@@ -45,6 +45,24 @@ begin
 end;
 
 
+function TfmMain.DoPyCapability(const ACapabilityId: string;
+  const AParams: TAppVariantArray; AInvoke: TATCommandInvoke;
+  AWarnIfMissing: boolean): boolean;
+var
+  SModule, SMethod: string;
+begin
+  Result:= false;
+  if not TPluginHelper.CapabilityResolve(ACapabilityId, SModule, SMethod) then
+  begin
+    if AWarnIfMissing then
+      MsgStatus(Format(msgCapabilityMissing, [ACapabilityId]));
+    exit;
+  end;
+  DoPyCommand(SModule, SMethod, AParams, AInvoke);
+  Result:= true;
+end;
+
+
 procedure TfmMain.DoPyCommand_ByCommandInfo(CmdItem: TAppCommandInfo; AInvoke: TATCommandInvoke);
 var
   F: TEditorFrame;

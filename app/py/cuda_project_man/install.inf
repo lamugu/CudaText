@@ -5,6 +5,14 @@ type=cudatext-plugin
 subdir=cuda_project_man
 homepage=https://github.com/pohmelie/cuda_project_man
 
+[capability1]
+id=open_folder
+method=open_dir
+
+[capability2]
+id=new_project_open_dir
+method=new_project_open_dir
+
 [sidebar1]
 hint=Project
 icon=project.png

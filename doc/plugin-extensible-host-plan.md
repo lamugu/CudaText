@@ -207,19 +207,20 @@
 
 ### 核心（Pascal）
 
-- [ ] `app/proc_capabilities.pas`（新建）或扩展 `proc_globdata.pas`
-- [ ] `app/formmain_py_pluginwork.inc` — 解析 capability
-- [ ] `app/formmain.pas` — 去掉硬编码 `DoPyCommand('cuda_…')`
-- [ ] `app/formmain_cmd.inc` — 更新检查走 capability
+- [x] `app/proc_globdata.pas` — `TAppCapabilityInfo` + 注册/解析 API
+- [x] `app/formmain_py_pluginwork.inc` — 解析 `[capability*]`
+- [x] `app/formmain.pas` — 去掉硬编码 `DoPyCommand('cuda_…')`
+- [x] `app/formmain_cmd.inc` — 更新检查走 capability
+- [x] `app/formmain_py_helpers.inc` — `DoPyCapability`
 - [ ] `app/formmain_loadsave.inc` — 保存短路钩子
 - [ ] `app/formmain_find.inc` / `form_find.pas` / `form_frame.pas` — 查找提供者
-- [ ] `app/formmain_py_api.inc` / `proc_py_const.pas` — 导出常量与 API
+- [x] `app/formmain_py_api.inc` / `proc_py_const.pas` — `PROC_CAPABILITY_*`
 - [ ] `app/proc_customdialog*.pas` — 拖放 API（可从旧工作区移植）
 
 ### Python / 插件
 
-- [ ] `app/py/cudatext.py` — 包装新 API
-- [ ] 内置四插件 `install.inf` 声明 capability
+- [x] `app/py/cudatext.py` — `PROC_CAPABILITY_*`
+- [x] 内置四插件 `install.inf` 声明 capability
 - [ ] `cuda_smart_notes`（移植）
 - [ ] `cuda_testing_capabilities`（新建）
 
@@ -233,12 +234,29 @@
 
 ## 9. 第一批动手顺序（建议）
 
-1. **P0.1** 实现 capability 注册表 + 替换 5 处硬编码  
-2. **P0.2** 文档与测试插件  
-3. **移植** dlg 拖放 + IME 小补丁（你已验证过）  
-4. **P1.1** 保存短路钩子 → 再合 Smart Notes  
-5. **P1.2** 打开模式钩子 → 再合大文件 Viewer 策略  
+1. **P0.1** ~~实现 capability 注册表 + 替换 5 处硬编码~~ **已完成**（见 commit）
+2. **P0.2** 文档与测试插件
+3. **移植** dlg 拖放 + IME 小补丁（你已验证过）
+4. **P1.1** 保存短路钩子 → 再合 Smart Notes
+5. **P1.2** 打开模式钩子 → 再合大文件 Viewer 策略
 6. **P2/P3** 菜单声明式与命令盘点（可并行）
+
+### P0 已落地的 capability ID
+
+| ID | 默认提供者 | 方法 |
+|----|------------|------|
+| `open_folder` | cuda_project_man | open_dir |
+| `new_project_open_dir` | cuda_project_man | new_project_open_dir |
+| `new_file_from_template` | cuda_new_file | menu |
+| `check_updates` | cuda_addonman | check_cudatext_updates |
+| `comment_line_add` | cuda_comments | cmt_add_line_body |
+| `comment_line_del` | cuda_comments | cmt_del_line |
+| `comment_line_toggle` | cuda_comments | cmt_toggle_line_body |
+| `comment_stream_toggle` | cuda_comments | cmt_toggle_stream |
+
+运行时注册：`app_proc(PROC_CAPABILITY_REGISTER, 'id;module;method[;priority]')`  
+查询：`app_proc(PROC_CAPABILITY_GET, 'id')` → `'module,method'`  
+列举：`app_proc(PROC_CAPABILITY_ENUM, '')`
 
 ---
 

@@ -67,6 +67,9 @@ begin
   //events: clear all
   AppEventList.Clear;
 
+  //capabilities: clear all (re-filled from install.inf)
+  TPluginHelper.CapabilitiesClear;
+
   ListFiles:= TStringlist.Create;
 
   if FileExists(AppFile_PluginsIni) then
@@ -133,7 +136,8 @@ type
     Item,
     TreeHelper,
     Sidebar,
-    Bottombar
+    Bottombar,
+    Capability
     );
 var
   ini: TMemIniFile;
@@ -141,7 +145,8 @@ var
   sectionId: TAppInfSection;
   ini_section, dir_inf: string;
   s_itemkind, s_caption, s_module, s_method, s_lexers,
-  s_events, s_keys, s_inmenu, s_icon, s_os, s_api: string;
+  s_events, s_keys, s_inmenu, s_icon, s_os, s_api,
+  s_cap_id, s_cap_prior: string;
   CmdItem: TAppCommandInfo;
   EventItem: TAppEventInfo;
   TreeHelper: TAppTreeHelper;
@@ -199,8 +204,24 @@ begin
       if SBeginsWith(ini_section, 'bottombar') then
         sectionId:= TAppInfSection.Bottombar
       else
+      if SBeginsWith(ini_section, 'capability') then
+        sectionId:= TAppInfSection.Capability
+      else
         sectionId:= TAppInfSection.None;
 
+      if sectionId=TAppInfSection.Capability then
+      begin
+        s_cap_id:= ini.ReadString(ini_section, 'id', '');
+        s_method:= ini.ReadString(ini_section, 'method', '');
+        if (s_cap_id='') or (s_method='') then Continue;
+        s_cap_prior:= ini.ReadString(ini_section, 'priority', '0');
+        TPluginHelper.CapabilityRegister(
+          s_cap_id,
+          s_module,
+          s_method,
+          StrToIntDef(s_cap_prior, 0));
+      end
+      else
       if (sectionId=TAppInfSection.Sidebar) or
         (sectionId=TAppInfSection.Bottombar) then
       begin

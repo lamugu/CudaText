@@ -349,6 +349,10 @@ const
     {$endif}
     ;
 
+  msgCapabilityMissing: string =
+    'No plugin provides capability "%s". Install or enable the required plugin.';
+
+
   msgCommandLineHelp =
       'Usage:'+EOL+
       '  cudatext [ key ... ] filename ...'+EOL+

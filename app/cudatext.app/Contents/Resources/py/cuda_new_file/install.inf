@@ -5,6 +5,10 @@ type=cudatext-plugin
 subdir=cuda_new_file
 homepage=
 
+[capability1]
+id=new_file_from_template
+method=menu
+
 [item1]
 section=commands
 caption=New File

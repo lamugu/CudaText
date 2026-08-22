@@ -808,7 +808,7 @@ begin
     cmd_HelpCheckUpdates:
       begin
         if UiOps.AllowProgramUpdates then
-          DoPyCommand('cuda_addonman', 'check_cudatext_updates', [], ACommandInvoke);
+          DoPyCapability('check_updates', [], ACommandInvoke);
       end;
   end;
 end;

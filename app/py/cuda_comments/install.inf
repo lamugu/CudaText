@@ -5,6 +5,22 @@ type=cudatext-plugin
 subdir=cuda_comments
 homepage=https://github.com/kvichans/cuda_comments
 
+[capability1]
+id=comment_line_add
+method=cmt_add_line_body
+
+[capability2]
+id=comment_line_del
+method=cmt_del_line
+
+[capability3]
+id=comment_line_toggle
+method=cmt_toggle_line_body
+
+[capability4]
+id=comment_stream_toggle
+method=cmt_toggle_stream
+
 [item11]
 section=commands
 caption=Comments\Toggle line comment, at line start

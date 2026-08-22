@@ -1174,6 +1174,17 @@ type
     ItemLexers: string;
   end;
 
+type
+  { TAppCapabilityInfo }
+  // Host capability: core calls by id, plugins provide module/method.
+  TAppCapabilityInfo = class
+  public
+    ItemId: string;
+    ItemModule: string;
+    ItemProc: string;
+    ItemPriority: integer;
+  end;
+
 var
   AppConsoleQueue: TAppConsoleQueue;
   AppCommandsDelayed: TAppCommandsDelayed;
@@ -1181,6 +1192,7 @@ var
   AppCommand2List: TFPList; //has plugin sub-commands, ie added by API app_proc()
   AppEventList: TFPList;
   AppTreeHelpers: TFPList;
+  AppCapabilityList: TFPList; //host capabilities from install.inf / API
 
 procedure AppClearPluginLists;
 
@@ -1236,6 +1248,13 @@ type
 
     class procedure ApiSub(const AText: string);
     class procedure ApiUnsub(const AText: string);
+
+    class procedure CapabilitiesClear;
+    class procedure CapabilityRegister(const AId, AModule, AMethod: string; APriority: integer = 0);
+    class function CapabilityResolve(const AId: string; out AModule, AMethod: string): boolean;
+    class function CapabilityGet(const AId: string): string; // 'module,method' or ''
+    class function CapabilityEnum: string; // lines: id=module,method;priority
+    class procedure CapabilityRegisterFromApi(const AText: string); // id;module;method[;priority]
 
     class function CommandCode_To_HotkeyStringId(ACmd: integer): string;
     class function HotkeyStringId_To_CommandCode(const AId: string): integer;
@@ -3224,6 +3243,9 @@ begin
   for i:= AppTreeHelpers.Count-1 downto 0 do
     TObject(AppTreeHelpers[i]).Free;
   FreeAndNil(AppTreeHelpers);
+
+  TPluginHelper.CapabilitiesClear;
+  FreeAndNil(AppCapabilityList);
 end;
 
 function AppEncodingShortnameToFullname(const S: string): string;
@@ -3707,6 +3729,115 @@ begin
   for i:= AppCommandList.Count-1 downto 0 do
     TObject(AppCommandList[i]).Free;
   AppCommandList.Clear;
+end;
+
+class procedure TPluginHelper.CapabilitiesClear;
+var
+  i: integer;
+begin
+  if AppCapabilityList=nil then exit;
+  for i:= AppCapabilityList.Count-1 downto 0 do
+    TObject(AppCapabilityList[i]).Free;
+  AppCapabilityList.Clear;
+end;
+
+class procedure TPluginHelper.CapabilityRegister(const AId, AModule, AMethod: string;
+  APriority: integer);
+var
+  Info, Exist: TAppCapabilityInfo;
+  i: integer;
+begin
+  if (AId='') or (AModule='') or (AMethod='') then exit;
+  if AppCapabilityList=nil then
+    AppCapabilityList:= TFPList.Create;
+
+  for i:= 0 to AppCapabilityList.Count-1 do
+  begin
+    Exist:= TAppCapabilityInfo(AppCapabilityList[i]);
+    if SameText(Exist.ItemId, AId) then
+    begin
+      // higher or equal priority replaces existing provider
+      if APriority>=Exist.ItemPriority then
+      begin
+        Exist.ItemModule:= AModule;
+        Exist.ItemProc:= AMethod;
+        Exist.ItemPriority:= APriority;
+      end;
+      exit;
+    end;
+  end;
+
+  Info:= TAppCapabilityInfo.Create;
+  Info.ItemId:= AId;
+  Info.ItemModule:= AModule;
+  Info.ItemProc:= AMethod;
+  Info.ItemPriority:= APriority;
+  AppCapabilityList.Add(Info);
+end;
+
+class function TPluginHelper.CapabilityResolve(const AId: string;
+  out AModule, AMethod: string): boolean;
+var
+  Info: TAppCapabilityInfo;
+  i: integer;
+begin
+  Result:= false;
+  AModule:= '';
+  AMethod:= '';
+  if (AId='') or (AppCapabilityList=nil) then exit;
+
+  for i:= 0 to AppCapabilityList.Count-1 do
+  begin
+    Info:= TAppCapabilityInfo(AppCapabilityList[i]);
+    if SameText(Info.ItemId, AId) then
+    begin
+      AModule:= Info.ItemModule;
+      AMethod:= Info.ItemProc;
+      exit(true);
+    end;
+  end;
+end;
+
+class function TPluginHelper.CapabilityGet(const AId: string): string;
+var
+  SModule, SMethod: string;
+begin
+  if CapabilityResolve(AId, SModule, SMethod) then
+    Result:= SModule+','+SMethod
+  else
+    Result:= '';
+end;
+
+class function TPluginHelper.CapabilityEnum: string;
+var
+  Info: TAppCapabilityInfo;
+  i: integer;
+begin
+  Result:= '';
+  if AppCapabilityList=nil then exit;
+  for i:= 0 to AppCapabilityList.Count-1 do
+  begin
+    Info:= TAppCapabilityInfo(AppCapabilityList[i]);
+    Result+= Info.ItemId+'='+Info.ItemModule+','+Info.ItemProc+
+      ';'+IntToStr(Info.ItemPriority)+#10;
+  end;
+end;
+
+class procedure TPluginHelper.CapabilityRegisterFromApi(const AText: string);
+var
+  Sep: TATStringSeparator;
+  SId, SModule, SMethod, SPrior: string;
+  NPrior: integer;
+begin
+  // format: id;module;method[;priority]
+  Sep.Init(AText, ';');
+  if not Sep.GetItemStr(SId) then exit;
+  if not Sep.GetItemStr(SModule) then exit;
+  if not Sep.GetItemStr(SMethod) then exit;
+  NPrior:= 0;
+  if Sep.GetItemStr(SPrior) then
+    NPrior:= StrToIntDef(SPrior, 0);
+  CapabilityRegister(SId, SModule, SMethod, NPrior);
 end;
 
 class procedure TPluginHelper.EventsMaxPrioritiesUpdate;
@@ -4326,6 +4457,7 @@ initialization
   AppCommand2List:= TFPList.Create;
   AppEventList:= TFPList.Create;
   AppTreeHelpers:= TFPList.Create;
+  AppCapabilityList:= TFPList.Create;
 
   AppKeymapMain:= TATKeymap.Create;
   InitKeymapFull(AppKeymapMain);

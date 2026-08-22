@@ -1270,6 +1270,8 @@ type
     procedure DoPyEvent_Open(Ed: TATSynEdit);
     procedure DoPyEvent_OpenNone(Ed: TATSynEdit);
     procedure DoPyCommand(const AModule, AMethod: string; const AParams: TAppVariantArray; AInvoke: TATCommandInvoke);
+    function DoPyCapability(const ACapabilityId: string; const AParams: TAppVariantArray;
+      AInvoke: TATCommandInvoke; AWarnIfMissing: boolean = true): boolean;
     function RunTreeHelper(Frame: TEditorFrame; ATree: TTreeView;
       AllowPascalHelpers, AllowPythonHelpers: boolean): boolean;
     function DoPyLexerDetection(const Filename: string; Lexers: TStringList): integer;
@@ -3990,10 +3992,14 @@ procedure TfmMain.FormShow(Sender: TObject);
   end;
   //
   procedure _Init_KeymapMain;
+  var
+    SModule, SMethod: string;
   begin
     //load keymap-main
     //after loading plugins (to apply plugins keys)
-    TKeymapHelper.SetHotkey(AppKeymapMain, 'cuda_comments,cmt_toggle_line_body|Ctrl+/|', false);
+    //default Ctrl+/ for line-comment toggle: resolve via capability, not hardcoded module name
+    if TPluginHelper.CapabilityResolve('comment_line_toggle', SModule, SMethod) then
+      TKeymapHelper.SetHotkey(AppKeymapMain, SModule+','+SMethod+'|Ctrl+/|', false);
     TKeymapHelper.LoadConfig(AppKeymapMain, AppFile_Hotkeys, false);
   end;
   //
@@ -4894,7 +4900,7 @@ end;
 procedure TfmMain.DoFolderOpen(const ADirName: string; ANewProject: boolean;
   AInvoke: TATCommandInvoke);
 begin
-  DoPyCommand('cuda_project_man', 'open_dir',
+  DoPyCapability('open_folder',
     [AppVariant(ADirName), AppVariant(ANewProject)],
     AInvoke);
 end;
@@ -4907,7 +4913,7 @@ begin
     exit;
   end;
 
-  DoPyCommand('cuda_project_man', 'new_project_open_dir', [], AInvoke);
+  DoPyCapability('new_project_open_dir', [], AInvoke);
 end;
 
 procedure TfmMain.DoOnChangeGroupMode(Sender: TObject);
@@ -8216,19 +8222,19 @@ begin
   if mnuToolbarCommentLineAdd=nil then
   begin
     mnuToolbarCommentLineAdd:= TMenuItem.Create(Self);
-    mnuToolbarCommentLineAdd.Hint:= 'cuda_comments,cmt_add_line_body';
+    mnuToolbarCommentLineAdd.Hint:= 'cap:comment_line_add';
     mnuToolbarCommentLineAdd.OnClick:= @MenuitemClick_CommandFromHint;
 
     mnuToolbarCommentLineDel:= TMenuItem.Create(Self);
-    mnuToolbarCommentLineDel.Hint:= 'cuda_comments,cmt_del_line';
+    mnuToolbarCommentLineDel.Hint:= 'cap:comment_line_del';
     mnuToolbarCommentLineDel.OnClick:= @MenuitemClick_CommandFromHint;
 
     mnuToolbarCommentLineToggle:= TMenuItem.Create(Self);
-    mnuToolbarCommentLineToggle.Hint:= 'cuda_comments,cmt_toggle_line_body';
+    mnuToolbarCommentLineToggle.Hint:= 'cap:comment_line_toggle';
     mnuToolbarCommentLineToggle.OnClick:= @MenuitemClick_CommandFromHint;
 
     mnuToolbarCommentStream:= TMenuItem.Create(Self);
-    mnuToolbarCommentStream.Hint:= 'cuda_comments,cmt_toggle_stream';
+    mnuToolbarCommentStream.Hint:= 'cap:comment_stream_toggle';
     mnuToolbarCommentStream.OnClick:= @MenuitemClick_CommandFromHint;
 
     PopupToolbarComment.Items.Add(mnuToolbarCommentLineToggle);
@@ -9013,7 +9019,7 @@ begin
     exit;
   end;
 
-  DoPyCommand('cuda_new_file', 'menu', [], AInvoke);
+  DoPyCapability('new_file_from_template', [], AInvoke);
 end;
 
 procedure TfmMain.DoCommands_OnMsg(Sender: TObject; const ARes: string);
@@ -9208,9 +9214,17 @@ end;
 procedure TfmMain.MenuitemClick_CommandFromHint(Sender: TObject);
 var
   Sep: TATStringSeparator;
-  SModule, SProc: string;
+  SHint, SModule, SProc, SCap: string;
 begin
-  Sep.Init((Sender as TMenuItem).Hint);
+  SHint:= (Sender as TMenuItem).Hint;
+  if SBeginsWith(SHint, 'cap:') then
+  begin
+    SCap:= Copy(SHint, Length('cap:')+1, MaxInt);
+    DoPyCapability(SCap, [], TATCommandInvoke.AppToolbar);
+    exit;
+  end;
+
+  Sep.Init(SHint);
   Sep.GetItemStr(SModule);
   Sep.GetItemStr(SProc);
   DoPyCommand(SModule, SProc, [], TATCommandInvoke.AppToolbar);

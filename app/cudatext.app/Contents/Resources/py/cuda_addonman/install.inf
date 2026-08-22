@@ -4,6 +4,10 @@ desc=Allows to manage CudaText plugins
 type=cudatext-plugin
 subdir=cuda_addonman
 
+[capability1]
+id=check_updates
+method=check_cudatext_updates
+
 [item1]
 section=commands
 caption=Addons Manager\Install...
