@@ -92,7 +92,7 @@ function TfmMain.DoPyEvent(AEd: TATSynEdit; AEvent: TAppPyEvent;
   const AParams: TAppVariantArray): TAppPyEventResult;
 const
   cTheseEventsStoppedByTrue = [TAppPyEvent.OnComplete, TAppPyEvent.OnConsoleComplete, TAppPyEvent.OnFuncHint{, cEventOnTabSwitch}];
-  cTheseEventsStoppedByNonEmptyString = [TAppPyEvent.OnFuncHint];
+  cTheseEventsStoppedByNonEmptyString = [TAppPyEvent.OnFuncHint, TAppPyEvent.OnSaveBefore, TAppPyEvent.OnSaveNaming];
   cTheseEventsNeedGroupingUndo = [TAppPyEvent.OnComplete, TAppPyEvent.OnSnippet];
   cTheseEventsDontRequireFrame = [TAppPyEvent.OnSnippet, TAppPyEvent.OnStart, TAppPyEvent.OnStart2, TAppPyEvent.OnExit, TAppPyEvent.OnDeleteFile, TAppPyEvent.OnSidebarPopup, TAppPyEvent.OnInitPluginsMenu];
   cTheseEventsAlwaysLazy = [TAppPyEvent.OnExit];

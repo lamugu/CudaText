@@ -211,8 +211,8 @@
 - [x] `app/formmain_py_pluginwork.inc` — 解析 `[capability*]`
 - [x] `app/formmain.pas` — 去掉硬编码 `DoPyCommand('cuda_…')`
 - [x] `app/formmain_cmd.inc` — 更新检查走 capability
-- [x] `app/formmain_py_helpers.inc` — `DoPyCapability`
-- [ ] `app/formmain_loadsave.inc` — 保存短路钩子
+- [x] `app/formmain_py_helpers.inc` — `DoPyCapability`；`on_save_pre` 字符串短路
+- [x] `app/form_frame.pas` — `on_save_pre` 返回路径则无对话框保存
 - [ ] `app/formmain_find.inc` / `form_find.pas` / `form_frame.pas` — 查找提供者
 - [x] `app/formmain_py_api.inc` / `proc_py_const.pas` — `PROC_CAPABILITY_*`
 - [x] `app/proc_customdialog*.pas` + `proc_windows_dragfiles.pas` — 拖放 API（已移植）

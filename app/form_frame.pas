@@ -3311,12 +3311,16 @@ var
   An: TecSyntAnalyzer;
   SNewFileName, SNameTemp, SNameInitial: string;
   EdIndex, NameCounter: integer;
-  bNameChanged, bNotifWasEnabled: boolean;
+  bNameChanged, bNotifWasEnabled, bPluginPath: boolean;
   EventRes: TAppPyEventResult;
 begin
   Result:= true;
   if FrameKind<>TAppFrameKind.Editor then exit(true); //disable saving, but close
 
+  // on_save_pre return values:
+  //   False  -> cancel default save (plugin may have fully handled save itself)
+  //   str    -> absolute path; core saves there without Save As dialog
+  //   other  -> continue default Save / Save As flow
   EventRes:= DoPyEvent(Ed, TAppPyEvent.OnSaveBefore, []);
   if EventRes.Val=TAppPyEventValue.False then exit(true); //disable saving, but close
 
@@ -3327,9 +3331,16 @@ begin
   DoHideNotificationPanel(NotifDeletedControls[EdIndex]);
 
   SNewFileName:= Ed.FileName;
-  bNameChanged:= ASaveAs or (SNewFileName='');
+  bPluginPath:= (EventRes.Val=TAppPyEventValue.Str) and (EventRes.Str<>'');
+  if bPluginPath then
+  begin
+    SNewFileName:= EventRes.Str;
+    bNameChanged:= (Ed.FileName='') or not SameFileName(Ed.FileName, SNewFileName);
+  end
+  else
+    bNameChanged:= ASaveAs or (SNewFileName='');
 
-  if bNameChanged then
+  if bNameChanged and not bPluginPath then
   begin
     An:= Lexer[Ed];
     if Assigned(An) then
@@ -3391,6 +3402,16 @@ begin
     SNewFileName:= SaveDialog.FileName;
 
     //remove read-only (it may be set for original file)
+    ReadOnly[Ed]:= false;
+  end
+  else
+  if bPluginPath then
+  begin
+    // Plugin chose the path: treat like Save As rename for recents/caption,
+    // but never show the Save dialog.
+    if Assigned(FOnAddRecent) and (Ed.FileName<>'') and
+       not SameFileName(Ed.FileName, SNewFileName) then
+      FOnAddRecent(Self, EdIndex);
     ReadOnly[Ed]:= false;
   end;
 
